@@ -50,10 +50,10 @@ class Queue implements QueueInterface
     const PRIORITY_HIGH = 'high';
     const PRIORITY_LOW = 'low';
 
-    const NS_QUEUE = 'tube';
-    const NS_QUEUE_STOP = 'tube2stop';
+    const NS_QUEUE = 'queue';
+    const NS_QUEUE_STOP = 'queue2stop';
     const NS_MESSAGE = 'message';
-    const NS_MESSAGE_TO_TUBE = 'message2tube';
+    const NS_MESSAGE_TO_QUEUE = 'message2queue';
     const NS_MESSAGE_TO_STATE = 'message2state';
 
     // State
@@ -63,7 +63,7 @@ class Queue implements QueueInterface
     const STATE_BURIED = 'buried';
 
     // Stats
-    const STATS_QUEUES_LIST = 'tubes';
+    const STATS_QUEUES_LIST = 'queues';
     const STATS_QUEUES = 'queues';
     const STATS_MESSAGE_TOTAL = 'total';
     const STATS_MESSAGE_READY = 'ready';
@@ -114,7 +114,7 @@ class Queue implements QueueInterface
     // ==========================================================================================
 
     /**
-     * @param string $tube
+     * @param string $queue
      * @param        $data
      * @param int    $delay
      * @param string $priority
@@ -122,28 +122,28 @@ class Queue implements QueueInterface
      * @return Message
      * @throws \Exception
      */
-    public function put($tube, $data, $delay = 0, $priority = self::PRIORITY_LOW)
+    public function put($queue, $data, $delay = 0, $priority = self::PRIORITY_LOW)
     {
         $message = $this->createMessage($data);
         $delay = $this->parseDelay($delay);
 
-        $result = $this->getRedis()->transaction(function ($tx) use ($tube, $message, $delay, $priority) {
+        $result = $this->getRedis()->transaction(function ($tx) use ($queue, $message, $delay, $priority) {
             /** @var $tx \Predis\Client */
 
             $state = $delay == 0 ? self::STATE_READY : self::STATE_DELAYED;
 
             $tx->hset($this->ns(self::NS_MESSAGE), $message->getToken(), $message->encode());
-            $tx->hset($this->ns(self::NS_MESSAGE_TO_TUBE), $message->getToken(), $tube);
+            $tx->hset($this->ns(self::NS_MESSAGE_TO_QUEUE), $message->getToken(), $queue);
             $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $message->getToken(), $state);
 
             if ($state === self::STATE_READY) {
                 if (self::PRIORITY_HIGH === $priority) {
-                    $tx->lpush($this->getKey($tube, self::STATE_READY), $message->getToken());
+                    $tx->lpush($this->getKey($queue, self::STATE_READY), $message->getToken());
                 } else {
-                    $tx->rpush($this->getKey($tube, self::STATE_READY), $message->getToken());
+                    $tx->rpush($this->getKey($queue, self::STATE_READY), $message->getToken());
                 }
             } else {
-                $tx->zadd($this->getKey($tube, self::STATE_DELAYED), time() + $delay, $message->getToken());
+                $tx->zadd($this->getKey($queue, self::STATE_DELAYED), time() + $delay, $message->getToken());
             }
         });
 
@@ -155,13 +155,13 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param               $tube
+     * @param               $queue
      * @param int           $timeout
      * @param callable|null $callback
      *
      * @return mixed|null|Queue
      */
-    public function pop($tube, $timeout = 0, callable $callback = null)
+    public function pop($queue, $timeout = 0, callable $callback = null)
     {
         if (is_callable($callback)) {
             $callback = function (Message $message = null, Queue $queue) use ($callback) {
@@ -169,10 +169,10 @@ class Queue implements QueueInterface
                 $callback($message, $queue);
             };
 
-            return $this->reserve($tube, $timeout, $callback);
+            return $this->reserve($queue, $timeout, $callback);
         }
 
-        $message = $this->reserve($tube, $timeout, $callback);
+        $message = $this->reserve($queue, $timeout, $callback);
 
         if ($message !== null) {
             $this->delete($message);
@@ -182,28 +182,28 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param               $tube
+     * @param               $queue
      * @param int           $timeout
      * @param callable|null $callback
      *
      * @return mixed|null|static
      */
-    public function reserve($tube, $timeout = 0, callable $callback = null)
+    public function reserve($queue, $timeout = 0, callable $callback = null)
     {
-        if ($this->isStop($tube)) {
+        if ($this->isStop($queue)) {
             return null;
         }
 
-        $this->migrate($tube);
+        $this->migrate($queue);
 
         $redis = $this->getRedis();
 
         if ($timeout > 0) {
-            // example return [ '0' => tube name , '1' => jobId ]
-            $token = $redis->blpop([$this->getKey($tube, self::STATE_READY)], $timeout);
+            // example return [ '0' => queue name , '1' => jobId ]
+            $token = $redis->blpop([$this->getKey($queue, self::STATE_READY)], $timeout);
             $token = (is_array($token)) ? $token[1] : null;
         } else {
-            $token = $redis->lpop($this->getKey($tube, self::STATE_READY));
+            $token = $redis->lpop($this->getKey($queue, self::STATE_READY));
         }
 
         if (!is_null($token)) {
@@ -214,12 +214,12 @@ class Queue implements QueueInterface
             }
 
             $message = Message::decode($encoded);
-            $redis->zadd($this->getKey($tube, self::STATE_RESERVED), time(), $token);
+            $redis->zadd($this->getKey($queue, self::STATE_RESERVED), time(), $token);
             $redis->hset($this->ns(self::NS_MESSAGE_TO_STATE), $token, self::STATE_RESERVED);
 
             if (is_callable($callback)) {
                 $callback($message, $this);
-                return $this->reserve($tube, $timeout, $callback);
+                return $this->reserve($queue, $timeout, $callback);
             }
 
             return $message;
@@ -270,7 +270,7 @@ class Queue implements QueueInterface
             $tx->zrem($this->getKey($payload->getQueue(), self::STATE_BURIED), $payload->getToken());
             $tx->zrem($this->getKey($payload->getQueue(), self::STATE_DELAYED), $payload->getToken()); // ?
             $tx->hdel($this->ns(self::NS_MESSAGE), $payload->getToken());
-            $tx->hdel($this->ns(self::NS_MESSAGE_TO_TUBE), $payload->getToken());
+            $tx->hdel($this->ns(self::NS_MESSAGE_TO_QUEUE), $payload->getToken());
             $tx->hdel($this->ns(self::NS_MESSAGE_TO_STATE), $payload->getToken());
         });
 
@@ -346,7 +346,7 @@ class Queue implements QueueInterface
     public function getQueueList()
     {
         $redis = $this->getRedis();
-        $queueList = $redis->hgetall($this->ns(self::NS_MESSAGE_TO_TUBE));
+        $queueList = $redis->hgetall($this->ns(self::NS_MESSAGE_TO_QUEUE));
         $queueList = array_values($queueList);
         $queueList = array_unique($queueList);
 
@@ -362,8 +362,8 @@ class Queue implements QueueInterface
     {
         if (null === $queue) {
             $queueList = $this->getQueueList();
-            foreach ($queueList as $tube) {
-                $this->migrate($tube);
+            foreach ($queueList as $queue) {
+                $this->migrate($queue);
             }
 
             return $this;
@@ -420,13 +420,13 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param string $tube
+     * @param string $queue
      *
      * @return bool
      */
-    public function isStop($tube)
+    public function isStop($queue)
     {
-        return (bool)$this->getRedis()->hexists($this->ns(self::NS_QUEUE_STOP), $tube);
+        return (bool)$this->getRedis()->hexists($this->ns(self::NS_QUEUE_STOP), $queue);
     }
 
     /**
@@ -618,7 +618,7 @@ class Queue implements QueueInterface
     {
         $redis = $this->getRedis();
         $token = $mixed instanceof Message ? $mixed->getToken() : $mixed;
-        $queue = $redis->hget($this->ns(self::NS_MESSAGE_TO_TUBE), $token);
+        $queue = $redis->hget($this->ns(self::NS_MESSAGE_TO_QUEUE), $token);
         $state = $redis->hget($this->ns(self::NS_MESSAGE_TO_STATE), $token);
 
         if (empty($token) || empty($queue) || empty($state)) {
