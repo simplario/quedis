@@ -20,32 +20,32 @@ interface QueueInterface
     public function __construct($redis, $namespace);
 
     /**
-     * @param string $tube
+     * @param string $queue
      * @param        $data
      * @param        $delay
      * @param        $priority
      *
      * @return string
      */
-    public function put($tube, $data, $delay, $priority);
+    public function put($queue, $data, $delay, $priority);
 
     /**
-     * @param               $tube
+     * @param               $queue
      * @param int           $timeout
      * @param callable|null $callback
      *
      * @return mixed
      */
-    public function pop($tube, $timeout = 0, callable $callback = null);
+    public function pop($queue, $timeout = 0, callable $callback = null);
 
     /**
-     * @param               $tube
+     * @param               $queue
      * @param               $timeout
      * @param callable|null $callback
      *
      * @return mixed
      */
-    public function reserve($tube, $timeout, callable $callback = null);
+    public function reserve($queue, $timeout, callable $callback = null);
 
     /**
      * @param string|Message $mixed

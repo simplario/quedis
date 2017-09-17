@@ -1,5 +1,5 @@
 filter:
-    excluded_paths: [ 'tests/*', 'ansible/*']
+    excluded_paths: [ 'tests/*', 'ansible/*', 'example.php']
 
 checks:
     php:
