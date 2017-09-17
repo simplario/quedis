@@ -185,6 +185,20 @@ class QueueTest extends TestCase
 
     }
 
+    /**
+     * @return void
+     */
+    public function testReserveWhenStop()
+    {
+        $queue = $this->createQueue();
 
+        $originA = $queue->put(self::TEST_QUEUE_NAME, 'message 1', 1);
+
+        $queue->stop(self::TEST_QUEUE_NAME);
+
+        $null = $queue->reserve(self::TEST_QUEUE_NAME);
+
+        $this->assertNull($null);
+    }
 
 }
