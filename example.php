@@ -1,31 +1,3 @@
-# quedis
-
-[![Latest Version on Packagist][ico-version]][link-packagist]
-[![Software License][ico-license]](LICENSE.md)
-[![Build Status][ico-travis]][link-travis]
-[![Coverage Status][ico-scrutinizer]][link-scrutinizer]
-[![Quality Score][ico-code-quality]][link-code-quality]
-[![Total Downloads][ico-downloads]][link-downloads]
-
-
-## Install
-- PHP 5.6+
-
-``` bash
-# via composer
-$ composer require simplario/quedis
-```
-
-
-## Testing
-``` bash
-$ composer test
-```
-
-
-## Start working
-
-``` php
 <?php
 
 // Bootstrap
@@ -139,28 +111,7 @@ $quedis->reserve('transaction-queue', 10, function(\Simplario\Quedis\Message $me
     $queue->delete($message);
 });
 
-// other flow look like:
+// other flow look like
 // ...
 
 
-```
-
-
-## License
-
-The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
-
-[ico-version]: https://img.shields.io/packagist/v/simplario/quedis.svg
-[ico-license]: https://img.shields.io/badge/license-MIT-brightgreen.svg
-[ico-travis]: https://img.shields.io/travis/simplario/quedis/master.svg
-[ico-scrutinizer]: https://img.shields.io/scrutinizer/coverage/g/simplario/quedis.svg
-[ico-code-quality]: https://img.shields.io/scrutinizer/g/simplario/quedis.svg
-[ico-downloads]: https://img.shields.io/packagist/dt/simplario/quedis.svg
-
-[link-packagist]: https://packagist.org/packages/simplario/quedis
-[link-travis]: https://travis-ci.org/simplario/quedis
-[link-scrutinizer]: https://scrutinizer-ci.com/g/simplario/quedis/code-structure
-[link-code-quality]: https://scrutinizer-ci.com/g/simplario/quedis
-[link-downloads]: https://packagist.org/packages/simplario/quedis
-[link-author]: https://github.com/vlad-groznov
-[link-contributors]: ../../contributors
