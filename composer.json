@@ -1,0 +1,25 @@
+{
+  "name": "simplario/quedis",
+  "description": "Quedis - redis queue",
+  "license": "MIT",
+  "require-dev": {
+    "phpunit/phpunit": "*",
+    "predis/predis": "^1.1"
+  },
+  "suggest": {
+    "predis/predis": "Needed for store messages"
+  },
+  "autoload": {
+    "psr-4": {
+      "Simplario\\Quedis\\": "src"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Simplario\\Quedis\\Tests\\": "tests"
+    }
+  },
+  "scripts": {
+    "test": "./vendor/bin/phpunit -vvv"
+  }
+}

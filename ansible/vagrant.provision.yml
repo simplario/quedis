@@ -1,0 +1,105 @@
+---
+- hosts: all
+  become: yes
+  become_method: sudo
+  vars:
+
+    bootstrap:
+      timezone: "UTC"
+      locale: "en_US.UTF-8"
+      packages: [ "curl", "wget", "git", "unzip", "htop", "mc", "make", "tree", "lynx" ]
+      copypaste:
+        - { src: "bash.bash_aliases.tpl", dest: "/home/vagrant/.bash_aliases" }
+        - { src: "bash.gitconfig.tpl", dest: "/home/vagrant/.gitconfig" }
+
+  tasks:
+
+    #######################################################################################
+    # Bootstrap
+    #######################################################################################
+
+    - name: Bootstrap | Set timezone to UTC
+      command: timedatectl set-timezone "{{bootstrap.timezone}}"
+
+    - name: Bootstrap | Set default system language pack
+      command: locale-gen {{bootstrap.locale}}
+
+    - name: Bootstrap | Install packages
+      apt: pkg={{ item }} state=latest
+      with_items: "{{ bootstrap.packages }}"
+      when: bootstrap.packages is defined
+
+    - name: Bootstrap | Copy files
+      template: src={{ item.src }} dest={{ item.dest }}
+      with_items: "{{ bootstrap.copypaste }}"
+      when: bootstrap.copypaste is defined
+
+
+    #######################################################################################
+    # Redis
+    #######################################################################################
+
+    - name: Redis | Install
+      apt: pkg=redis-server state=installed
+      notify: restart redis
+
+    - name: Redis | Update config
+      template: src=redis.redis.conf.tpl dest=/etc/redis/redis.conf
+      notify: restart redis
+
+
+    #######################################################################################
+    # PHP 7
+    #######################################################################################
+
+    - name: PHP | Install php packages
+      apt: pkg={{ item }} state=installed
+      with_items:
+        - php-fpm
+        - php-dev
+        - php-xdebug
+        - php-redis
+        - php-mcrypt
+        - php-mbstring
+        - php-curl
+        - php-json
+      notify: restart php
+
+    - name: PHP | Update configuration (php.ini)
+      template: src={{ item.template }} dest={{ item.dest }} backup=yes owner=root group=root mode="{{ item.mode|default(0644) }}"
+      with_items:
+        - { template: "lang.php7.0.ini.tpl", dest: "/etc/php/7.0/fpm/php.ini" }
+        - { template: "lang.php7.0.ini.tpl", dest: "/etc/php/7.0/cli/php.ini" }
+        - { template: "lang.php.xdebug.ini.tpl", dest: "/etc/php/7.0/mods-available/xdebug.ini" } # xdebug configuration
+        - { template: "lang.php.xdebug-phpx.tpl", dest: "/usr/bin/phpx", mode: "0755" } # php with xdebug in CLI
+      notify: restart php
+
+
+    #######################################################################################
+    # Composer
+    #######################################################################################
+
+    - name: Composer | Install Composer
+      shell: cd /home/vagrant/ && curl -sS https://getcomposer.org/installer | php && sudo mv composer.phar /usr/local/bin/composer
+             creates=/usr/local/bin/composer
+
+
+    #######################################################################################
+    # Application
+    #######################################################################################
+
+    - name: Env | install composer packeges
+      shell: "cd /data/ && composer install"
+
+
+  #######################################################################################
+  # Restart services
+  #######################################################################################
+
+  handlers:
+
+    - name: restart php
+      service: name=php7.0-fpm state=restarted
+
+    - name: restart redis
+      service: name=redis-server state=restarted
