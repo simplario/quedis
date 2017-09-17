@@ -210,14 +210,14 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param string  $queue
-     * @param Message $message
-     * @param int     $timeout
-     * @param null    $callback
+     * @param string        $queue
+     * @param Message       $message
+     * @param int           $timeout
+     * @param callable|null $callback
      *
      * @return mixed|null|Queue
      */
-    protected function reserveResult($queue, $message, $timeout = 0, $callback = null)
+    protected function reserveResult($queue, $message, $timeout = 0, callable $callback = null)
     {
         if (is_callable($callback)) {
             $callback($message, $this);
