@@ -85,7 +85,7 @@ class Queue implements QueueInterface
     /**
      * Queue constructor.
      *
-     * @param        $redis
+     * @param mixed  $redis
      * @param string $namespace
      */
     public function __construct($redis, $namespace = 'Quedis')
@@ -110,12 +110,9 @@ class Queue implements QueueInterface
         return $this->namespace;
     }
 
-    // Message Flow =============================================================================
-    // ==========================================================================================
-
     /**
      * @param string $queue
-     * @param        $data
+     * @param mixed  $data
      * @param int    $delay
      * @param string $priority
      *
@@ -155,7 +152,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param               $queue
+     * @param string        $queue
      * @param int           $timeout
      * @param callable|null $callback
      *
@@ -182,7 +179,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param               $queue
+     * @param string        $queue
      * @param int           $timeout
      * @param callable|null $callback
      *
@@ -196,6 +193,49 @@ class Queue implements QueueInterface
 
         $this->migrate($queue);
 
+        $token = $this->reserveToken($queue, $timeout);
+        $message = $this->restoreMessage($token);
+
+        if($message === null){
+            return null;
+        }
+
+        $this->getRedis()->transaction(function ($tx) use ($queue, $token) {
+            /** @var $tx \Predis\Client */
+            $tx->zadd($this->getKey($queue, self::STATE_RESERVED), time(), $token);
+            $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $token, self::STATE_RESERVED);
+        });
+
+        return $this->reserveResult($queue, $message, $timeout, $callback);
+    }
+
+    /**
+     * @param string  $queue
+     * @param Message $message
+     * @param int     $timeout
+     * @param null    $callback
+     *
+     * @return mixed|null|Queue
+     */
+    protected function reserveResult($queue, $message, $timeout = 0, $callback = null)
+    {
+        if (is_callable($callback)) {
+            $callback($message, $this);
+            return $this->reserve($queue, $timeout, $callback);
+        }
+
+        return $message;
+    }
+
+    /**
+     * @param string $queue
+     * @param int    $timeout
+     *
+     * @return null|string
+     */
+    protected function reserveToken($queue, $timeout = 0)
+    {
+
         $redis = $this->getRedis();
 
         if ($timeout > 0) {
@@ -206,26 +246,24 @@ class Queue implements QueueInterface
             $token = $redis->lpop($this->getKey($queue, self::STATE_READY));
         }
 
-        if (!is_null($token)) {
-            $encoded = $redis->hget($this->ns(self::NS_MESSAGE), $token);
+        return $token;
+    }
 
-            if ($encoded === null) {
-                return null;
-            }
-
-            $message = Message::decode($encoded);
-            $redis->zadd($this->getKey($queue, self::STATE_RESERVED), time(), $token);
-            $redis->hset($this->ns(self::NS_MESSAGE_TO_STATE), $token, self::STATE_RESERVED);
-
-            if (is_callable($callback)) {
-                $callback($message, $this);
-                return $this->reserve($queue, $timeout, $callback);
-            }
-
-            return $message;
+    /**
+     * @param string|null $token
+     *
+     * @return null|Message
+     */
+    protected function restoreMessage($token)
+    {
+        if (is_null($token)) {
+            return null;
         }
 
-        return null;
+        $encoded = $this->getRedis()->hget($this->ns(self::NS_MESSAGE), $token);
+        $message = Message::decode($encoded);
+
+        return $message;
     }
 
     /**
@@ -307,7 +345,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param     $mixed
+     * @param Message|string $mixed
      * @param int $delay
      *
      * @return $this
@@ -430,7 +468,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param $queue
+     * @param string $queue
      *
      * @return array
      */
@@ -491,7 +529,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param        $queue
+     * @param string $queue
      * @param string $state
      *
      * @return int|string
@@ -512,7 +550,7 @@ class Queue implements QueueInterface
 
 
     /**
-     * @param null $queue
+     * @param null|string $queue
      *
      * @return $this
      */
@@ -534,7 +572,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param $mixed
+     * @param mixed $mixed
      *
      * @return Message
      */
@@ -548,7 +586,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param $type
+     * @param string $type
      *
      * @return string
      */
@@ -559,8 +597,8 @@ class Queue implements QueueInterface
 
 
     /**
-     * @param $queue
-     * @param $state
+     * @param string $queue
+     * @param string $state
      *
      * @return string
      */
@@ -586,8 +624,8 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param $currentState
-     * @param $action
+     * @param string $currentState
+     * @param string $action
      *
      * @return $this
      * @throws FlowException
@@ -620,10 +658,6 @@ class Queue implements QueueInterface
         $token = $mixed instanceof Message ? $mixed->getToken() : $mixed;
         $queue = $redis->hget($this->ns(self::NS_MESSAGE_TO_QUEUE), $token);
         $state = $redis->hget($this->ns(self::NS_MESSAGE_TO_STATE), $token);
-
-        if (empty($token) || empty($queue) || empty($state)) {
-            throw new QueueException("Can not resolve message info, token: '{$token}', queue: '{$queue}', state '{$state}'");
-        }
 
         return new Payload($token, $queue, $state);
     }
