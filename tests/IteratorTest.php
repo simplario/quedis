@@ -167,6 +167,7 @@ class IteratorTest extends TestCase
 
         $originA = $queue->put(self::TEST_QUEUE_NAME, 'message 1');
         $originB = $queue->put(self::TEST_QUEUE_NAME, 'message 2');
+        $originC = $queue->put(self::TEST_QUEUE_NAME, 'message 3', 10);
 
 
         $result = [];
@@ -184,7 +185,8 @@ class IteratorTest extends TestCase
         });
 
         $this->assertEquals($originA, $result[0]);
-        $this->assertEquals(1, count($result));
+        $this->assertEquals($originB, $result[1]);
+        $this->assertEquals(2, count($result));
     }
 
 

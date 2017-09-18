@@ -41,6 +41,7 @@ class Iterator implements IteratorInterface
     {
         $options[self::OPT_TIMEOUT] = (int)isset($options[self::OPT_MESSAGES]) ? $options[self::OPT_MESSAGES] : 0;
         $options[self::OPT_SLEEP] = (int)isset($options[self::OPT_SLEEP]) ? $options[self::OPT_SLEEP] : 0;
+        $options[self::OPT_STRATEGY] = isset($options[self::OPT_STRATEGY]) ? $options[self::OPT_STRATEGY] : 'pop';
 
         $this->queue = $queue;
         $this->options = $options;
@@ -54,41 +55,60 @@ class Iterator implements IteratorInterface
     public function each(callable $callback)
     {
         $options = $this->options;
-        $index = 0;
-        $loop = 0;
-        while (true) {
+        $method = in_array($options[self::OPT_STRATEGY], ['pop', 'reserve']) ? $options[self::OPT_STRATEGY] : 'pop';
 
-            if (isset($options[self::OPT_STRATEGY]) && $options[self::OPT_STRATEGY] == 'pop') {
-                $message = $this->queue->pop($options[self::OPT_QUEUE], $options[self::OPT_TIMEOUT]);
-            } else {
-                $message = $this->queue->reserve($options[self::OPT_QUEUE], $options[self::OPT_TIMEOUT]);
-            }
+        $queueName = $options[self::OPT_QUEUE];
+        $timeout = $options[self::OPT_TIMEOUT];
+
+        $count = 0;
+        $loop = 0;
+
+        while ($message = $this->queue->{$method}($queueName, $timeout)) {
 
             if ($message instanceof MessageInterface) {
-                $index++;
                 $callback($message, $this->queue);
-            } else {
+                $count++;
+            }
+
+            if ($this->isMessagesExceed($count) || $this->isLoopsExceed($loop++)) {
                 break;
             }
 
-            if (isset($options[self::OPT_MESSAGES]) && $options[self::OPT_MESSAGES] <= $index) {
-                break;
-            }
-
-            $loop++;
-            if (isset($options[self::OPT_LOOPS]) && $options[self::OPT_LOOPS] <= $loop) {
-                break;
-            }
-
-            if ($options[self::OPT_SLEEP] > 0) {
-                sleep($options[self::OPT_SLEEP]);
-            }
+            $this->trySleep();
         }
 
         return $this;
     }
 
+    /**
+     * @param $count
+     *
+     * @return bool
+     */
+    protected function isMessagesExceed($count)
+    {
+        return isset($this->options[self::OPT_MESSAGES]) && $this->options[self::OPT_MESSAGES] <= $count;
+    }
+
+    /**
+     * @param $loop
+     *
+     * @return bool
+     */
+    protected function isLoopsExceed($loop)
+    {
+        return isset($this->options[self::OPT_LOOPS]) && $this->options[self::OPT_LOOPS] <= $loop;
+    }
+
+    /**
+     * @return $this
+     */
+    protected function trySleep()
+    {
+        if ($this->options[self::OPT_SLEEP] > 0) {
+            sleep($this->options[self::OPT_SLEEP]);
+        }
+
+        return $this;
+    }
 }
-
-
-
