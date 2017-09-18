@@ -154,22 +154,12 @@ class Queue implements QueueInterface
     /**
      * @param string        $queue
      * @param int           $timeout
-     * @param callable|null $callback
      *
      * @return mixed|null|Queue
      */
-    public function pop($queue, $timeout = 0, callable $callback = null)
+    public function pop($queue, $timeout = 0)
     {
-        if (is_callable($callback)) {
-            $callback = function (Message $message = null, Queue $queue) use ($callback) {
-                $this->delete($message);
-                $callback($message, $queue);
-            };
-
-            return $this->reserve($queue, $timeout, $callback);
-        }
-
-        $message = $this->reserve($queue, $timeout, $callback);
+        $message = $this->reserve($queue, $timeout);
 
         if ($message !== null) {
             $this->delete($message);
@@ -181,11 +171,10 @@ class Queue implements QueueInterface
     /**
      * @param string        $queue
      * @param int           $timeout
-     * @param callable|null $callback
      *
-     * @return mixed|null|static
+     * @return Message|null
      */
-    public function reserve($queue, $timeout = 0, callable $callback = null)
+    public function reserve($queue, $timeout = 0)
     {
         if ($this->isStop($queue)) {
             return null;
@@ -205,24 +194,6 @@ class Queue implements QueueInterface
             $tx->zadd($this->getKey($queue, self::STATE_RESERVED), time(), $token);
             $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $token, self::STATE_RESERVED);
         });
-
-        return $this->reserveResult($queue, $message, $timeout, $callback);
-    }
-
-    /**
-     * @param string        $queue
-     * @param Message       $message
-     * @param int           $timeout
-     * @param callable|null $callback
-     *
-     * @return mixed|null|Queue
-     */
-    protected function reserveResult($queue, $message, $timeout = 0, callable $callback = null)
-    {
-        if (is_callable($callback)) {
-            $callback($message, $this);
-            return $this->reserve($queue, $timeout, $callback);
-        }
 
         return $message;
     }

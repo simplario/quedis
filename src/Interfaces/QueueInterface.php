@@ -32,20 +32,18 @@ interface QueueInterface
     /**
      * @param               $queue
      * @param int           $timeout
-     * @param callable|null $callback
      *
-     * @return mixed
+     * @return Message|null
      */
-    public function pop($queue, $timeout = 0, callable $callback = null);
+    public function pop($queue, $timeout = 0);
 
     /**
      * @param               $queue
      * @param               $timeout
-     * @param callable|null $callback
      *
-     * @return mixed
+     * @return Message|null
      */
-    public function reserve($queue, $timeout, callable $callback = null);
+    public function reserve($queue, $timeout);
 
     /**
      * @param string|Message $mixed

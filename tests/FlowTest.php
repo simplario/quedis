@@ -33,66 +33,6 @@ class FlowTest extends TestCase
     /**
      * @return void
      */
-    public function testQueuePutReserveWithCallback()
-    {
-        $queue = $this->createQueue();
-
-        $originA = $queue->put(self::TEST_QUEUE_NAME, 'aaa');
-        $originB = $queue->put(self::TEST_QUEUE_NAME, 'bbb');
-
-        // in other process
-
-        $fromQueueSet = [];
-        $queue->reserve(self::TEST_QUEUE_NAME, 0, function (Message $message, Queue $queue) use (&$fromQueueSet) {
-
-            // do something with message ...
-
-            $fromQueueSet[] = $message;
-            $queue->delete($message);
-        });
-
-        // tests
-
-        $this->assertEquals($originA, $fromQueueSet[0]);
-        $this->assertEquals($originB, $fromQueueSet[1]);
-
-        $stats = $queue->stats();
-        $this->assertEquals(0, $stats[Queue::STATS_MESSAGE_TOTAL]);
-    }
-
-
-    /**
-     * @return void
-     */
-    public function testQueuePutPopWithCallback()
-    {
-        $queue = $this->createQueue();
-
-        $originA = $queue->put(self::TEST_QUEUE_NAME, 'aaa');
-        $originB = $queue->put(self::TEST_QUEUE_NAME, 'bbb');
-
-        // in other process
-
-        $fromQueueSet = [];
-        $queue->pop(self::TEST_QUEUE_NAME, 0, function (Message $message, Queue $queue) use (&$fromQueueSet) {
-
-            // do something with message ...
-
-            $fromQueueSet[] = $message;
-        });
-
-        // tests
-
-        $this->assertEquals($originA, $fromQueueSet[0]);
-        $this->assertEquals($originB, $fromQueueSet[1]);
-
-        $stats = $queue->stats();
-        $this->assertEquals(0, $stats[Queue::STATS_MESSAGE_TOTAL]);
-    }
-
-    /**
-     * @return void
-     */
     public function testQueuePutPop()
     {
         $queue = $this->createQueue();
