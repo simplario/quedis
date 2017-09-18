@@ -4,6 +4,7 @@ namespace Simplario\Quedis;
 
 use Simplario\Quedis\Exceptions\FlowException;
 use Simplario\Quedis\Exceptions\QueueException;
+use Simplario\Quedis\Interfaces\MessageInterface;
 use Simplario\Quedis\Interfaces\QueueInterface;
 
 /**
@@ -116,7 +117,7 @@ class Queue implements QueueInterface
      * @param int    $delay
      * @param string $priority
      *
-     * @return Message
+     * @return MessageInterface
      * @throws \Exception
      */
     public function put($queue, $data, $delay = 0, $priority = self::PRIORITY_LOW)
@@ -223,7 +224,7 @@ class Queue implements QueueInterface
     /**
      * @param string|null $token
      *
-     * @return null|Message
+     * @return null|MessageInterface
      */
     protected function restoreMessage($token)
     {
@@ -238,7 +239,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param Message|string $mixed
+     * @param string|MessageInterface $mixed
      *
      * @return $this
      * @throws QueueException
@@ -263,7 +264,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param Message|string $mixed
+     * @param string|MessageInterface $mixed
      *
      * @return $this
      * @throws QueueException
@@ -291,7 +292,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param Message|string $mixed
+     * @param MessageInterface|string $mixed
      *
      * @return $this
      * @throws QueueException
@@ -316,7 +317,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param Message|string $mixed
+     * @param MessageInterface|string $mixed
      * @param int $delay
      *
      * @return $this
@@ -559,11 +560,11 @@ class Queue implements QueueInterface
     /**
      * @param mixed $mixed
      *
-     * @return Message
+     * @return MessageInterface
      */
     protected function createMessage($mixed)
     {
-        if ($mixed instanceof Message) {
+        if ($mixed instanceof MessageInterface) {
             return $mixed;
         }
 
@@ -632,7 +633,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param Message|string $mixed
+     * @param string|MessageInterface $mixed
      *
      * @return Payload
      * @throws QueueException
@@ -640,7 +641,7 @@ class Queue implements QueueInterface
     protected function payload($mixed)
     {
         $redis = $this->getRedis();
-        $token = $mixed instanceof Message ? $mixed->getToken() : $mixed;
+        $token = $mixed instanceof MessageInterface ? $mixed->getToken() : $mixed;
         $queue = $redis->hget($this->ns(self::NS_MESSAGE_TO_QUEUE), $token);
         $state = $redis->hget($this->ns(self::NS_MESSAGE_TO_STATE), $token);
 

@@ -3,9 +3,12 @@
 namespace Simplario\Quedis;
 
 use Simplario\Quedis\Interfaces\IteratorInterface;
+use Simplario\Quedis\Interfaces\MessageInterface;
+use Simplario\Quedis\Interfaces\QueueInterface;
 
 /**
  * Class Iterator
+ *
  * @package Simplario\Quedis
  */
 class Iterator implements IteratorInterface
@@ -30,14 +33,14 @@ class Iterator implements IteratorInterface
 
     /**
      * Iterator constructor.
-     * @param Queue $queue
-     * @param array $options
+     *
+     * @param QueueInterface $queue
+     * @param array          $options
      */
-    public function __construct(Queue $queue, array $options = [])
+    public function __construct(QueueInterface $queue, array $options = [])
     {
-
-        $options[self::OPT_TIMEOUT] = (int) isset($options[self::OPT_MESSAGES]) ? $options[self::OPT_MESSAGES] : 0;
-        $options[self::OPT_SLEEP] = (int) isset($options[self::OPT_SLEEP]) ? $options[self::OPT_SLEEP] : 0;
+        $options[self::OPT_TIMEOUT] = (int)isset($options[self::OPT_MESSAGES]) ? $options[self::OPT_MESSAGES] : 0;
+        $options[self::OPT_SLEEP] = (int)isset($options[self::OPT_SLEEP]) ? $options[self::OPT_SLEEP] : 0;
 
         $this->queue = $queue;
         $this->options = $options;
@@ -45,6 +48,7 @@ class Iterator implements IteratorInterface
 
     /**
      * @param callable $callback
+     *
      * @return $this
      */
     public function each(callable $callback)
@@ -54,13 +58,13 @@ class Iterator implements IteratorInterface
         $loop = 0;
         while (true) {
 
-            if (isset($options[self::OPT_STRATEGY]) &&  $options[self::OPT_STRATEGY] == 'pop') {
+            if (isset($options[self::OPT_STRATEGY]) && $options[self::OPT_STRATEGY] == 'pop') {
                 $message = $this->queue->pop($options[self::OPT_QUEUE], $options[self::OPT_TIMEOUT]);
             } else {
                 $message = $this->queue->reserve($options[self::OPT_QUEUE], $options[self::OPT_TIMEOUT]);
             }
 
-            if ($message instanceof Message) {
+            if ($message instanceof MessageInterface) {
                 $index++;
                 $callback($message, $this->queue);
             } else {
