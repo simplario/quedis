@@ -11,6 +11,13 @@ use Simplario\Quedis\Interfaces\IteratorInterface;
 class Iterator implements IteratorInterface
 {
 
+    const OPT_QUEUE = 'queue';       // queue name
+    const OPT_TIMEOUT = 'timeout';   // 0 .. 999999999 sec
+    const OPT_STRATEGY = 'strategy'; // 'pop' or 'reserve'
+    const OPT_MESSAGES = 'messages'; // 0 .. 999999999 items
+    const OPT_LOOPS = 'loops';       // 0 .. 999999999 sec
+    const OPT_SLEEP = 'sleep';       // 0 .. 999999999 sec
+
     /**
      * @var \Simplario\Quedis\Queue
      */
@@ -28,6 +35,10 @@ class Iterator implements IteratorInterface
      */
     public function __construct(Queue $queue, array $options = [])
     {
+
+        $options[self::OPT_TIMEOUT] = (int) isset($options[self::OPT_MESSAGES]) ? $options[self::OPT_MESSAGES] : 0;
+        $options[self::OPT_SLEEP] = (int) isset($options[self::OPT_SLEEP]) ? $options[self::OPT_SLEEP] : 0;
+
         $this->queue = $queue;
         $this->options = $options;
     }
@@ -43,10 +54,10 @@ class Iterator implements IteratorInterface
         $loop = 0;
         while (true) {
 
-            if ($options['strategy'] == 'pop') {
-                $message = $this->queue->pop($options['queue'], $options['timeout']);
+            if (isset($options[self::OPT_STRATEGY]) &&  $options[self::OPT_STRATEGY] == 'pop') {
+                $message = $this->queue->pop($options[self::OPT_QUEUE], $options[self::OPT_TIMEOUT]);
             } else {
-                $message = $this->queue->reserve($options['queue'], $options['timeout']);
+                $message = $this->queue->reserve($options[self::OPT_QUEUE], $options[self::OPT_TIMEOUT]);
             }
 
             if ($message instanceof Message) {
@@ -56,19 +67,18 @@ class Iterator implements IteratorInterface
                 break;
             }
 
-            if (isset($options['sleep']) && $options['sleep'] > 0) {
-                sleep($options['sleep']);
-            }
-
-            if (isset($options['limit-message']) && $options['limit-message'] == $index) {
+            if (isset($options[self::OPT_MESSAGES]) && $options[self::OPT_MESSAGES] <= $index) {
                 break;
             }
 
             $loop++;
-            if (isset($options['limit-loop']) && $options['limit-loop'] == $loop) {
+            if (isset($options[self::OPT_LOOPS]) && $options[self::OPT_LOOPS] <= $loop) {
                 break;
             }
 
+            if ($options[self::OPT_SLEEP] > 0) {
+                sleep($options[self::OPT_SLEEP]);
+            }
         }
 
         return $this;

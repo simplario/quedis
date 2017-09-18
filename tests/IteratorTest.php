@@ -3,15 +3,14 @@
 namespace Simplario\Quedis\Tests;
 
 use PHPUnit\Framework\TestCase;
-use Simplario\Quedis\Exceptions\QueueException;
 use Simplario\Quedis\Interfaces\IteratorInterface;
-use Simplario\Quedis\Interfaces\QueueInterface;
 use Simplario\Quedis\Iterator;
 use Simplario\Quedis\Message;
 use Simplario\Quedis\Queue;
 
 /**
  * Class IteratorTest
+ *
  * @package Simplario\Quedis\Tests
  */
 class IteratorTest extends TestCase
@@ -49,6 +48,27 @@ class IteratorTest extends TestCase
     /**
      * @return void
      */
+    public function testIteratePopViaQueue()
+    {
+        $queue = $this->createQueue();
+
+        $originA = $queue->put(self::TEST_QUEUE_NAME, 'message 1');
+        $originB = $queue->put(self::TEST_QUEUE_NAME, 'message 2');
+
+        $queue->iterator(self::TEST_QUEUE_NAME, [
+            'strategy' => 'pop',
+        ])->each(function (Message $message, Queue $queue) use (&$result) {
+            $result[] = $message;
+        });
+
+
+        $this->assertEquals($originA, $result[0]);
+        $this->assertEquals($originB, $result[1]);
+    }
+
+    /**
+     * @return void
+     */
     public function testIteratePopWay()
     {
         $queue = $this->createQueue();
@@ -64,8 +84,6 @@ class IteratorTest extends TestCase
             'sleep'         => 0,
             'timeout'       => 0,
             'strategy'      => 'pop',
-            'limit-message' => 100,
-            'limit-loop'    => 10,
         ]);
 
 
@@ -95,8 +113,6 @@ class IteratorTest extends TestCase
             'sleep'         => 0,
             'timeout'       => 0,
             'strategy'      => 'reserve',
-            'limit-message' => 100,
-            'limit-loop'    => 10,
         ]);
 
 
@@ -129,7 +145,7 @@ class IteratorTest extends TestCase
             'queue'         => self::TEST_QUEUE_NAME,
             'timeout'       => 0,
             'strategy'      => 'pop',
-            'limit-message' => 1,
+            'messages'      => 1,
         ]);
 
 
@@ -159,7 +175,7 @@ class IteratorTest extends TestCase
             'queue'         => self::TEST_QUEUE_NAME,
             'timeout'       => 0,
             'strategy'      => 'pop',
-            'limit-loop'    => 1,
+            'loops'         => 1,
         ]);
 
 

@@ -404,6 +404,20 @@ class Queue implements QueueInterface
         return $this;
     }
 
+
+    /**
+     * @param string $queue
+     * @param array  $options
+     *
+     * @return Iterator
+     */
+    public function iterator($queue, array $options = [])
+    {
+        $options['queue'] = $queue;
+
+        return new Iterator($this, $options);
+    }
+
     /**
      * @param string $queue
      *
