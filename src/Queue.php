@@ -4,6 +4,7 @@ namespace Simplario\Quedis;
 
 use Simplario\Quedis\Exceptions\FlowException;
 use Simplario\Quedis\Exceptions\QueueException;
+use Simplario\Quedis\Interfaces\MessageInterface;
 use Simplario\Quedis\Interfaces\QueueInterface;
 
 /**
@@ -116,7 +117,7 @@ class Queue implements QueueInterface
      * @param int    $delay
      * @param string $priority
      *
-     * @return Message
+     * @return MessageInterface
      * @throws \Exception
      */
     public function put($queue, $data, $delay = 0, $priority = self::PRIORITY_LOW)
@@ -154,22 +155,12 @@ class Queue implements QueueInterface
     /**
      * @param string        $queue
      * @param int           $timeout
-     * @param callable|null $callback
      *
      * @return mixed|null|Queue
      */
-    public function pop($queue, $timeout = 0, callable $callback = null)
+    public function pop($queue, $timeout = 0)
     {
-        if (is_callable($callback)) {
-            $callback = function (Message $message = null, Queue $queue) use ($callback) {
-                $this->delete($message);
-                $callback($message, $queue);
-            };
-
-            return $this->reserve($queue, $timeout, $callback);
-        }
-
-        $message = $this->reserve($queue, $timeout, $callback);
+        $message = $this->reserve($queue, $timeout);
 
         if ($message !== null) {
             $this->delete($message);
@@ -181,11 +172,10 @@ class Queue implements QueueInterface
     /**
      * @param string        $queue
      * @param int           $timeout
-     * @param callable|null $callback
      *
-     * @return mixed|null|static
+     * @return Message|null
      */
-    public function reserve($queue, $timeout = 0, callable $callback = null)
+    public function reserve($queue, $timeout = 0)
     {
         if ($this->isStop($queue)) {
             return null;
@@ -205,24 +195,6 @@ class Queue implements QueueInterface
             $tx->zadd($this->getKey($queue, self::STATE_RESERVED), time(), $token);
             $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $token, self::STATE_RESERVED);
         });
-
-        return $this->reserveResult($queue, $message, $timeout, $callback);
-    }
-
-    /**
-     * @param string        $queue
-     * @param Message       $message
-     * @param int           $timeout
-     * @param callable|null $callback
-     *
-     * @return mixed|null|Queue
-     */
-    protected function reserveResult($queue, $message, $timeout = 0, callable $callback = null)
-    {
-        if (is_callable($callback)) {
-            $callback($message, $this);
-            return $this->reserve($queue, $timeout, $callback);
-        }
 
         return $message;
     }
@@ -252,7 +224,7 @@ class Queue implements QueueInterface
     /**
      * @param string|null $token
      *
-     * @return null|Message
+     * @return null|MessageInterface
      */
     protected function restoreMessage($token)
     {
@@ -267,7 +239,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param Message|string $mixed
+     * @param string|MessageInterface $mixed
      *
      * @return $this
      * @throws QueueException
@@ -292,7 +264,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param Message|string $mixed
+     * @param string|MessageInterface $mixed
      *
      * @return $this
      * @throws QueueException
@@ -320,7 +292,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param Message|string $mixed
+     * @param MessageInterface|string $mixed
      *
      * @return $this
      * @throws QueueException
@@ -345,7 +317,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param Message|string $mixed
+     * @param MessageInterface|string $mixed
      * @param int $delay
      *
      * @return $this
@@ -431,6 +403,20 @@ class Queue implements QueueInterface
             });
 
         return $this;
+    }
+
+
+    /**
+     * @param string $queue
+     * @param array  $options
+     *
+     * @return Iterator
+     */
+    public function iterator($queue, array $options = [])
+    {
+        $options['queue'] = $queue;
+
+        return new Iterator($this, $options);
     }
 
     /**
@@ -574,11 +560,11 @@ class Queue implements QueueInterface
     /**
      * @param mixed $mixed
      *
-     * @return Message
+     * @return MessageInterface
      */
     protected function createMessage($mixed)
     {
-        if ($mixed instanceof Message) {
+        if ($mixed instanceof MessageInterface) {
             return $mixed;
         }
 
@@ -647,7 +633,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param Message|string $mixed
+     * @param string|MessageInterface $mixed
      *
      * @return Payload
      * @throws QueueException
@@ -655,7 +641,7 @@ class Queue implements QueueInterface
     protected function payload($mixed)
     {
         $redis = $this->getRedis();
-        $token = $mixed instanceof Message ? $mixed->getToken() : $mixed;
+        $token = $mixed instanceof MessageInterface ? $mixed->getToken() : $mixed;
         $queue = $redis->hget($this->ns(self::NS_MESSAGE_TO_QUEUE), $token);
         $state = $redis->hget($this->ns(self::NS_MESSAGE_TO_STATE), $token);
 

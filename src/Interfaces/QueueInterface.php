@@ -2,8 +2,6 @@
 
 namespace Simplario\Quedis\Interfaces;
 
-use Simplario\Quedis\Message;
-
 /**
  * Interface QueueInterface
  *
@@ -32,37 +30,35 @@ interface QueueInterface
     /**
      * @param               $queue
      * @param int           $timeout
-     * @param callable|null $callback
      *
-     * @return mixed
+     * @return null|MessageInterface
      */
-    public function pop($queue, $timeout = 0, callable $callback = null);
+    public function pop($queue, $timeout = 0);
 
     /**
      * @param               $queue
      * @param               $timeout
-     * @param callable|null $callback
      *
-     * @return mixed
+     * @return null|MessageInterface
      */
-    public function reserve($queue, $timeout, callable $callback = null);
+    public function reserve($queue, $timeout);
 
     /**
-     * @param string|Message $mixed
+     * @param string|MessageInterface $mixed
      *
      * @return boolean
      */
     public function bury($mixed);
 
     /**
-     * @param string|Message $mixed
+     * @param string|MessageInterface $mixed
      *
      * @return boolean
      */
     public function delete($mixed);
 
     /**
-     * @param string|Message $mixed
+     * @param MessageInterface|string $mixed
      *
      * @return boolean
      */
@@ -71,16 +67,23 @@ interface QueueInterface
     /**
      * @param string $queue
      *
-     * @return boolean
+     * @return $this
      */
     public function stop($queue);
 
     /**
      * @param string $queue
      *
-     * @return boolean
+     * @return $this
      */
     public function start($queue);
+
+    /**
+     * @param string $queue
+     *
+     * @return bool
+     */
+    public function isStop($queue);
 
     /**
      * @return array
@@ -93,4 +96,13 @@ interface QueueInterface
      * @return mixed
      */
     public function clean($queue = null);
+
+    /**
+     * @param string $queue
+     * @param array  $options
+     *
+     * @return IteratorInterface
+     */
+    public function iterator($queue, array $options = []);
+
 }
