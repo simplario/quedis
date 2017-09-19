@@ -207,23 +207,32 @@ class QueueTest extends TestCase
      */
     public function testBadIdeaCheckTransactionResult()
     {
-        $redis = new \Predis\Client();
-        $class = new class( 'Anonymous' ) extends Queue{
-            public function PublicCheckTransactionResult($result, $action){
-                return $this->checkTransactionResult($result, $action);
-            }
-        };
+        if (version_compare(PHP_VERSION, '7.0', '>=')) {
 
-        $queue = new $class($redis, self::TEST_QUEUE_NAMESPACE);
-        $queue->clean();
+            $redis = new \Predis\Client();
+            $class = new class('Anonymous') extends Queue
+            {
+                public function PublicCheckTransactionResult($result, $action)
+                {
+                    return $this->checkTransactionResult($result, $action);
+                }
+            };
 
-        $instance = $queue->PublicCheckTransactionResult([true, true, true], 'dummy action 1');
+            $queue = new $class($redis, self::TEST_QUEUE_NAMESPACE);
+            $queue->clean();
 
-        $this->assertEquals($queue, $instance);
+            $instance = $queue->PublicCheckTransactionResult([true, true, true], 'dummy action 1');
 
-        $this->expectException(QueueException::class);
+            $this->assertEquals($queue, $instance);
 
-        $queue->PublicCheckTransactionResult([true, true, false], 'dummy action 2');
+            $this->expectException(QueueException::class);
+
+            $queue->PublicCheckTransactionResult([true, true, false], 'dummy action 2');
+
+        } else {
+            $this->assertEquals(true, true);
+        }
+
     }
 
 }
