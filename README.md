@@ -43,13 +43,16 @@ $quedis = new \Simplario\Quedis\Queue($redis, 'ExampleNameSpace');
 // Put message to Quedis
 // =========================================
 
+
 // add new messages
 $message11 = $quedis->put('transaction-queue', 'transaction-11');
 $message12 = $quedis->put('transaction-queue', new \Simplario\Quedis\Message('transaction-12'));
 
+
 // with delay
 $message22 = $quedis->put('transaction-queue', 'transaction-21', 60 * 5);
 $message22 = $quedis->put('transaction-queue', 'transaction-22', (new \DateTime())->modify('+1 day'));
+
 
 // with priority
 $message32 = $quedis->put('transaction-queue', 'transaction-31', 0, 'high');
@@ -59,8 +62,10 @@ $message32 = $quedis->put('transaction-queue', 'transaction-32', 0, 'low');
 // Get Quedis statistic
 // =========================================
 
+
 // for concrete queue
 $queueStat = $quedis->stats('transaction-queue');
+
 
 // for all queues
 $statsAll = $quedis->stats();
@@ -69,11 +74,14 @@ $statsAll = $quedis->stats();
 // Stop/start queue
 // =========================================
 
+
 // stop queue
 $quedis->stop('transaction-queue');
 
+
 // for all queues
 $quedis->start('transaction-queue');
+
 
 // check
 $isStop = $quedis->isStop('transaction-queue');
@@ -121,26 +129,65 @@ print_r($isStop);
 $message = $quedis->pop('transaction-queue');
 print_r($message);
 
+
 // just pop single message with timeout (redis blpop timeout)
 $message = $quedis->pop('transaction-queue', 10);
 print_r($message);
 
+
+// reserve flow
+$message = $quedis->reserve('transaction-queue', 10);
+$quedis->delete($message);
+
+
+// reserve > bury > kick > reserve > delete
+$message = $quedis->reserve('transaction-queue', 10);
+// something goes wrong ...
+$quedis->bury($message);
+// ok lets retry one more time ...
+$quedis->kick($message);
+$messageSame = $quedis->reserve($message);
+// all is ok!
+$quedis->delete($messageSame);
+
+
+// Iterator usage
+// =========================================
+
+
 // iterate pop all messages
-$quedis->pop('transaction-queue', 10, function(\Simplario\Quedis\Message $message, \Simplario\Quedis\Queue $queue){
+$quedis->iterator('transaction-queue', [
+    'sleep'    => 5, // seconds
+    'timeout'  => 10, // seconds
+    'strategy' => 'reserve', // 'pop' or 'reserve' flow
+    'messages' => 10000,
+    'loops'    => 20000,
+])->each(function (\Simplario\Quedis\Message $message, \Simplario\Quedis\Queue $queue) {
+
     print_r($message);
-});
 
-// iterate reserve all messages
-$quedis->reserve('transaction-queue', 10, function(\Simplario\Quedis\Message $message, \Simplario\Quedis\Queue $queue){
-
-    print_r($message);
-
-    // delete message, look at message flow diagram
     $queue->delete($message);
 });
 
-// other flow look like:
-// ...
+
+// or like standalone
+
+
+$queue = new \Simplario\Quedis\Queue(new \Predis\Client(), 'super-puper-quedis');
+
+$iterator = new \Simplario\Quedis\Iterator($queue, [
+    'sleep'    => 5, // seconds
+    'timeout'  => 10, // seconds
+    'strategy' => 'pop', // 'pop' or 'reserve' flow
+    'messages' => 10000,
+    'loops'    => 20000
+]);
+
+$iterator->each(function (\Simplario\Quedis\Message $message, \Simplario\Quedis\Queue $queue) {
+
+    print_r($message);
+
+});
 
 
 ```
