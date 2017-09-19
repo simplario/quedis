@@ -95,6 +95,30 @@ class FlowTest extends TestCase
         $this->assertEquals($origin, $message);
     }
 
+
+    /**
+     * @return void
+     */
+    public function testQueuePutReserveReleaseWithTimeout()
+    {
+        $queue = $this->createQueue();
+
+        $origin = $queue->put(self::TEST_QUEUE_NAME, 'aaa');
+
+        // in other process
+
+        $message = $queue->reserve(self::TEST_QUEUE_NAME);
+        $queue->release($message, 10);
+
+        $stats = $queue->stats(self::TEST_QUEUE_NAME);
+
+        // test (wait for migration in future)
+
+        $this->assertEquals(1, $stats[Queue::STATS_MESSAGE_DELAYED]);
+        $this->assertEquals(1, $stats[Queue::STATS_MESSAGE_TOTAL]);
+    }
+
+
     /**
      * @return void
      */

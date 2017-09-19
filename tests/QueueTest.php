@@ -7,6 +7,15 @@ use Simplario\Quedis\Exceptions\QueueException;
 use Simplario\Quedis\Interfaces\QueueInterface;
 use Simplario\Quedis\Queue;
 
+
+class QueueBadIdea extends Queue
+{
+    public function PublicCheckTransactionResult($result, $action)
+    {
+        return $this->checkTransactionResult($result, $action);
+    }
+}
+
 /**
  * Class QueueTest
  * @package Simplario\Quedis\Tests
@@ -199,6 +208,26 @@ class QueueTest extends TestCase
         $null = $queue->reserve(self::TEST_QUEUE_NAME);
 
         $this->assertNull($null);
+    }
+
+
+    /**
+     * @return void
+     */
+    public function testBadIdeaCheckTransactionResult()
+    {
+        $redis = new \Predis\Client();
+
+        $queue = new QueueBadIdea($redis, self::TEST_QUEUE_NAMESPACE);
+        $queue->clean();
+
+        $instance = $queue->PublicCheckTransactionResult([true, true, true], 'dummy action 1');
+
+        $this->assertEquals($queue, $instance);
+
+        $this->expectException(QueueException::class);
+
+        $queue->PublicCheckTransactionResult([true, true, false], 'dummy action 2');
     }
 
 }
