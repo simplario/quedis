@@ -201,4 +201,29 @@ class QueueTest extends TestCase
         $this->assertNull($null);
     }
 
+
+    /**
+     * @return void
+     */
+    public function testBadIdeaCheckTransactionResult()
+    {
+        $redis = new \Predis\Client();
+        $class = new class( 'Anonymous' ) extends Queue{
+            public function PublicCheckTransactionResult($result, $action){
+                return $this->checkTransactionResult($result, $action);
+            }
+        };
+
+        $queue = new $class($redis, self::TEST_QUEUE_NAMESPACE);
+        $queue->clean();
+
+        $instance = $queue->PublicCheckTransactionResult([true, true, true], 'dummy action 1');
+
+        $this->assertEquals($queue, $instance);
+
+        $this->expectException(QueueException::class);
+
+        $queue->PublicCheckTransactionResult([true, true, false], 'dummy action 2');
+    }
+
 }

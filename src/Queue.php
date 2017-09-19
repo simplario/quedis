@@ -145,9 +145,7 @@ class Queue implements QueueInterface
             }
         });
 
-        if (in_array(false, $result, true)) {
-            throw new QueueException('Can not put message to queue');
-        }
+        $this->checkTransactionResult($result, 'put');
 
         return $message;
     }
@@ -173,7 +171,7 @@ class Queue implements QueueInterface
      * @param string        $queue
      * @param int           $timeout
      *
-     * @return Message|null
+     * @return MessageInterface|null
      */
     public function reserve($queue, $timeout = 0)
     {
@@ -256,9 +254,7 @@ class Queue implements QueueInterface
             $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $payload->getToken(), self::STATE_BURIED);
         });
 
-        if (in_array(false, $result, true)) {
-            throw new QueueException("The message bury error.");
-        }
+        $this->checkTransactionResult($result, 'bury');
 
         return $this;
     }
@@ -274,7 +270,7 @@ class Queue implements QueueInterface
         $payload = $this->payload($mixed);
         $this->checkMessageFlow($payload->getState(), 'delete');
 
-        $result = $this->getRedis()->transaction(function ($tx) use ($payload) {
+        $this->getRedis()->transaction(function ($tx) use ($payload) {
             /** @var $tx \Predis\Client */
             $tx->zrem($this->getKey($payload->getQueue(), self::STATE_RESERVED), $payload->getToken());
             $tx->zrem($this->getKey($payload->getQueue(), self::STATE_BURIED), $payload->getToken());
@@ -283,10 +279,6 @@ class Queue implements QueueInterface
             $tx->hdel($this->ns(self::NS_MESSAGE_TO_QUEUE), $payload->getToken());
             $tx->hdel($this->ns(self::NS_MESSAGE_TO_STATE), $payload->getToken());
         });
-
-        if (array_count_values($result) < 1) {
-            throw new QueueException("The message deleting error");
-        }
 
         return $this;
     }
@@ -309,9 +301,7 @@ class Queue implements QueueInterface
             $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $payload->getToken(), self::STATE_READY);
         });
 
-        if (in_array(false, $result, true)) {
-            throw new QueueException("The message kicked error");
-        }
+        $this->checkTransactionResult($result, 'kick');
 
         return $this;
     }
@@ -343,9 +333,7 @@ class Queue implements QueueInterface
             }
         });
 
-        if (in_array(false, $result, true)) {
-            throw new QueueException("The message release error.");
-        }
+        $this->checkTransactionResult($result, 'release');
 
         return $this;
     }
@@ -627,6 +615,22 @@ class Queue implements QueueInterface
 
         if (!in_array($currentState, $mapping[$action], true)) {
             throw new FlowException("Flow error, the message state '{$currentState}' cannot be '{$action}'.");
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param array  $result
+     * @param string $action
+     *
+     * @return $this
+     * @throws QueueException
+     */
+    protected function checkTransactionResult($result, $action)
+    {
+        if (in_array(false, $result, true)) {
+            throw new QueueException("Transaction '{$action}' error.");
         }
 
         return $this;
