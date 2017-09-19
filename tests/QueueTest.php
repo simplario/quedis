@@ -7,6 +7,15 @@ use Simplario\Quedis\Exceptions\QueueException;
 use Simplario\Quedis\Interfaces\QueueInterface;
 use Simplario\Quedis\Queue;
 
+
+class QueueBadIdea extends Queue
+{
+    public function PublicCheckTransactionResult($result, $action)
+    {
+        return $this->checkTransactionResult($result, $action);
+    }
+}
+
 /**
  * Class QueueTest
  * @package Simplario\Quedis\Tests
@@ -207,32 +216,18 @@ class QueueTest extends TestCase
      */
     public function testBadIdeaCheckTransactionResult()
     {
-        if (version_compare(PHP_VERSION, '7.0', '>=')) {
+        $redis = new \Predis\Client();
 
-            $redis = new \Predis\Client();
-            $class = new class('Anonymous') extends Queue
-            {
-                public function PublicCheckTransactionResult($result, $action)
-                {
-                    return $this->checkTransactionResult($result, $action);
-                }
-            };
+        $queue = new QueueBadIdea($redis, self::TEST_QUEUE_NAMESPACE);
+        $queue->clean();
 
-            $queue = new $class($redis, self::TEST_QUEUE_NAMESPACE);
-            $queue->clean();
+        $instance = $queue->PublicCheckTransactionResult([true, true, true], 'dummy action 1');
 
-            $instance = $queue->PublicCheckTransactionResult([true, true, true], 'dummy action 1');
+        $this->assertEquals($queue, $instance);
 
-            $this->assertEquals($queue, $instance);
+        $this->expectException(QueueException::class);
 
-            $this->expectException(QueueException::class);
-
-            $queue->PublicCheckTransactionResult([true, true, false], 'dummy action 2');
-
-        } else {
-            $this->assertEquals(true, true);
-        }
-
+        $queue->PublicCheckTransactionResult([true, true, false], 'dummy action 2');
     }
 
 }
