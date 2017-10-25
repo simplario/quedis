@@ -5,7 +5,6 @@
 [![Build Status][ico-travis]][link-travis]
 [![Coverage Status][ico-scrutinizer]][link-scrutinizer]
 [![Quality Score][ico-code-quality]][link-code-quality]
-[![Total Downloads][ico-downloads]][link-downloads]
 
 
 ## Install
@@ -155,7 +154,7 @@ $quedis->delete($messageSame);
 // =========================================
 
 
-// iterate pop all messages
+// iterate reserve all messages
 $quedis->iterator('transaction-queue', [
     'sleep'    => 5, // seconds
     'timeout'  => 10, // seconds
@@ -170,7 +169,7 @@ $quedis->iterator('transaction-queue', [
 });
 
 
-// or like standalone
+// or like standalone with pop logic
 
 
 $queue = new \Simplario\Quedis\Queue(new \Predis\Client(), 'super-puper-quedis');
@@ -208,6 +207,5 @@ The MIT License (MIT). Please see [License File](LICENSE.md) for more informatio
 [link-travis]: https://travis-ci.org/simplario/quedis
 [link-scrutinizer]: https://scrutinizer-ci.com/g/simplario/quedis/code-structure
 [link-code-quality]: https://scrutinizer-ci.com/g/simplario/quedis
-[link-downloads]: https://packagist.org/packages/simplario/quedis
 [link-author]: https://github.com/vlad-groznov
 [link-contributors]: ../../contributors
