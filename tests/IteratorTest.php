@@ -221,4 +221,35 @@ class IteratorTest extends TestCase
         $this->assertEquals($originB, $result[1]);
         $this->assertTrue(time() > $time);
     }
+
+
+    /**
+     * @return void
+     */
+    public function testIterateFinishIterator()
+    {
+        $queue = $this->createQueue();
+
+        $originA = $queue->put(self::TEST_QUEUE_NAME, 'message 1');
+        $originB = $queue->put(self::TEST_QUEUE_NAME, 'message 2');
+        $originC = $queue->put(self::TEST_QUEUE_NAME, 'message 3');
+
+        $result = [];
+
+        $iterator = new Iterator($queue, [
+            'queue'    => self::TEST_QUEUE_NAME,
+            'strategy' => 'pop',
+        ]);
+
+
+        $iterator->each(function(Message $message, Queue $queue, Iterator $iterator) use (&$result){
+            $result[] = $message;
+
+            $iterator->finish();
+        });
+
+        $this->assertEquals($originA, $result[0]);
+        $this->assertEquals(1, count($result));
+    }
+
 }

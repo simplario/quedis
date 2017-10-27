@@ -20,6 +20,7 @@ class Iterator implements IteratorInterface
     const OPT_MESSAGES = 'messages'; // 0 .. 999999999 items
     const OPT_LOOPS = 'loops';       // 0 .. 999999999 sec
     const OPT_SLEEP = 'sleep';       // 0 .. 999999999 sec
+    const OPT_FINISH = 'finish';     // flag for finish iteration
 
     /**
      * @var \Simplario\Quedis\Queue
@@ -39,9 +40,10 @@ class Iterator implements IteratorInterface
      */
     public function __construct(QueueInterface $queue, array $options = [])
     {
-        $options[self::OPT_TIMEOUT] = (int)isset($options[self::OPT_MESSAGES]) ? $options[self::OPT_MESSAGES] : 0;
-        $options[self::OPT_SLEEP] = (int)isset($options[self::OPT_SLEEP]) ? $options[self::OPT_SLEEP] : 0;
+        $options[self::OPT_TIMEOUT] = isset($options[self::OPT_TIMEOUT]) ? (int) $options[self::OPT_TIMEOUT] : 0;
+        $options[self::OPT_SLEEP] = isset($options[self::OPT_SLEEP]) ? (int) $options[self::OPT_SLEEP] : 0;
         $options[self::OPT_STRATEGY] = isset($options[self::OPT_STRATEGY]) ? $options[self::OPT_STRATEGY] : 'pop';
+        $options[self::OPT_FINISH] = false;
 
         $this->queue = $queue;
         $this->options = $options;
@@ -66,8 +68,12 @@ class Iterator implements IteratorInterface
         while ($message = $this->queue->{$method}($queueName, $timeout)) {
 
             if ($message instanceof MessageInterface) {
-                $callback($message, $this->queue);
+                $callback($message, $this->queue, $this);
                 $count++;
+            }
+
+            if ($this->isFinish()) {
+                break;
             }
 
             if ($this->isMessagesExceed($count) || $this->isLoopsExceed($loop++)) {
@@ -78,6 +84,24 @@ class Iterator implements IteratorInterface
         }
 
         return $this;
+    }
+
+    /**
+     * @return $this
+     */
+    public function finish()
+    {
+        $this->options[self::OPT_FINISH] = true;
+
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    protected function isFinish()
+    {
+        return $this->options[self::OPT_FINISH];
     }
 
     /**
