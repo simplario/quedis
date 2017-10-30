@@ -64,7 +64,7 @@ class Queue implements QueueInterface
     const STATE_BURIED = 'buried';
 
     // Stats
-    const STATS_QUEUES_LIST = 'queues';
+    const STATS_QUEUES_LIST = 'queues-list';
     const STATS_QUEUES = 'queues';
     const STATS_MESSAGE_TOTAL = 'total';
     const STATS_MESSAGE_READY = 'ready';
