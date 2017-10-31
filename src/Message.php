@@ -30,9 +30,12 @@ class Message implements MessageInterface
         $this->token = $token !== null ? $token : $this->generateToken();
     }
 
+    /**
+     * @return string
+     */
     protected function generateToken()
     {
-        return uniqid() . '-' . time();
+        return implode('-', [uniqid(), mt_rand(1000000, 9999999), time()]);
     }
 
     /**
