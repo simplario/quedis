@@ -242,29 +242,6 @@ class Queue implements QueueInterface
      * @return $this
      * @throws QueueException
      */
-    public function bury($mixed)
-    {
-        $payload = $this->payload($mixed);
-        $this->checkMessageFlow($payload->getState(), 'bury');
-
-        $result = $this->getRedis()->transaction(function ($tx) use ($payload) {
-            /** @var $tx \Predis\Client */
-            $tx->zrem($this->getKey($payload->getQueue(), self::STATE_RESERVED), $payload->getToken());
-            $tx->zadd($this->getKey($payload->getQueue(), self::STATE_BURIED), time(), $payload->getToken());
-            $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $payload->getToken(), self::STATE_BURIED);
-        });
-
-        $this->checkTransactionResult($result, 'bury');
-
-        return $this;
-    }
-
-    /**
-     * @param string|MessageInterface $mixed
-     *
-     * @return $this
-     * @throws QueueException
-     */
     public function delete($mixed)
     {
         $payload = $this->payload($mixed);
@@ -279,29 +256,6 @@ class Queue implements QueueInterface
             $tx->hdel($this->ns(self::NS_MESSAGE_TO_QUEUE), $payload->getToken());
             $tx->hdel($this->ns(self::NS_MESSAGE_TO_STATE), $payload->getToken());
         });
-
-        return $this;
-    }
-
-    /**
-     * @param MessageInterface|string $mixed
-     *
-     * @return $this
-     * @throws QueueException
-     */
-    public function kick($mixed)
-    {
-        $payload = $this->payload($mixed);
-        $this->checkMessageFlow($payload->getState(), 'kick');
-
-        $result = $this->getRedis()->transaction(function ($tx) use ($payload) {
-            /** @var $tx \Predis\Client */
-            $tx->zrem($this->getKey($payload->getQueue(), self::STATE_BURIED), $payload->getToken());
-            $tx->rpush($this->getKey($payload->getQueue(), self::STATE_READY), $payload->getToken());
-            $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $payload->getToken(), self::STATE_READY);
-        });
-
-        $this->checkTransactionResult($result, 'kick');
 
         return $this;
     }
@@ -334,6 +288,59 @@ class Queue implements QueueInterface
         });
 
         $this->checkTransactionResult($result, 'release');
+
+        return $this;
+    }
+
+    /**
+     * @param MessageInterface|string $mixed
+     *
+     * @return $this
+     * @throws QueueException
+     */
+    public function kick($mixed)
+    {
+        return $this->moveMessage($mixed, 'kick');
+    }
+
+    /**
+     * @param string|MessageInterface $mixed
+     *
+     * @return $this
+     * @throws QueueException
+     */
+    public function bury($mixed)
+    {
+        return $this->moveMessage($mixed, 'bury');
+    }
+
+    /**
+     * @param MessageInterface|string $mixed
+     * @param string                  $moveTo
+     *
+     * @return $this
+     * @throws QueueException
+     */
+    protected function moveMessage($mixed, $moveTo)
+    {
+        $payload = $this->payload($mixed);
+
+        $this->checkMessageFlow($payload->getState(), $moveTo);
+
+        $result = $this->getRedis()->transaction(function ($tx) use ($payload, $moveTo) {
+            /** @var $tx \Predis\Client */
+            if ($moveTo === 'bury') {
+                $tx->zrem($this->getKey($payload->getQueue(), self::STATE_RESERVED), $payload->getToken());
+                $tx->zadd($this->getKey($payload->getQueue(), self::STATE_BURIED), time(), $payload->getToken());
+                $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $payload->getToken(), self::STATE_BURIED);
+            } elseif ($moveTo === 'kick') {
+                $tx->zrem($this->getKey($payload->getQueue(), self::STATE_BURIED), $payload->getToken());
+                $tx->rpush($this->getKey($payload->getQueue(), self::STATE_READY), $payload->getToken());
+                $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $payload->getToken(), self::STATE_READY);
+            }
+        });
+
+        $this->checkTransactionResult($result, $moveTo);
 
         return $this;
     }
@@ -620,7 +627,7 @@ class Queue implements QueueInterface
     }
 
     /**
-     * @param array  $result
+     * @param mixed  $result
      * @param string $action
      *
      * @return $this
@@ -628,7 +635,7 @@ class Queue implements QueueInterface
      */
     protected function checkTransactionResult($result, $action)
     {
-        if (in_array(false, $result, true)) {
+        if (in_array(false, (array) $result, true)) {
             throw new QueueException("Transaction '{$action}' error.");
         }
 
