@@ -155,38 +155,20 @@ $quedis->delete($messageSame);
 
 
 // iterate reserve all messages
-$quedis->iterator('transaction-queue', [
-    'sleep'    => 5, // seconds
-    'timeout'  => 10, // seconds
-    'strategy' => 'reserve', // 'pop' or 'reserve' flow
-    'messages' => 10000,
-    'loops'    => 20000,
-])->each(function (\Simplario\Quedis\Message $message, \Simplario\Quedis\Queue $queue) {
-
+$iterator = $quedis->iterator('transaction-queue', 'reserve', 10);
+foreach($iterator as $index => $message){
     print_r($message);
 
-    $queue->delete($message);
-});
+    $quedis->delete($message);
+}
 
 
 // or like standalone with pop logic
-
-
 $queue = new \Simplario\Quedis\Queue(new \Predis\Client(), 'super-puper-quedis');
-
-$iterator = new \Simplario\Quedis\Iterator($queue, [
-    'sleep'    => 5, // seconds
-    'timeout'  => 10, // seconds
-    'strategy' => 'pop', // 'pop' or 'reserve' flow
-    'messages' => 10000,
-    'loops'    => 20000
-]);
-
-$iterator->each(function (\Simplario\Quedis\Message $message, \Simplario\Quedis\Queue $queue) {
-
+$iterator = new \Simplario\Quedis\Iterator($queue, 'transaction-queue', 'pop', 10);
+foreach($iterator as $index => $message){
     print_r($message);
-
-});
+}
 
 
 ```
