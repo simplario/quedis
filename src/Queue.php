@@ -2,6 +2,12 @@
 
 namespace Simplario\Quedis;
 
+use Simplario\Quedis\Command\DeleteCommand;
+use Simplario\Quedis\Command\MigrateCommand;
+use Simplario\Quedis\Command\MoveCommand;
+use Simplario\Quedis\Command\PutCommand;
+use Simplario\Quedis\Command\ReleaseCommand;
+use Simplario\Quedis\Command\ReserveCommand;
 use Simplario\Quedis\Exceptions\FlowException;
 use Simplario\Quedis\Exceptions\QueueException;
 use Simplario\Quedis\Interfaces\MessageInterface;
@@ -122,30 +128,8 @@ class Queue implements QueueInterface
      */
     public function put($queue, $data, $delay = 0, $priority = self::PRIORITY_LOW)
     {
-        $message = $this->createMessage($data);
-        $delay = $this->parseDelay($delay);
-
-        $result = $this->getRedis()->transaction(function ($tx) use ($queue, $message, $delay, $priority) {
-            /** @var $tx \Predis\Client */
-
-            $state = $delay == 0 ? self::STATE_READY : self::STATE_DELAYED;
-
-            $tx->hset($this->ns(self::NS_MESSAGE), $message->getToken(), $message->encode());
-            $tx->hset($this->ns(self::NS_MESSAGE_TO_QUEUE), $message->getToken(), $queue);
-            $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $message->getToken(), $state);
-
-            if ($state === self::STATE_READY) {
-                if (self::PRIORITY_HIGH === $priority) {
-                    $tx->lpush($this->getKey($queue, self::STATE_READY), $message->getToken());
-                } else {
-                    $tx->rpush($this->getKey($queue, self::STATE_READY), $message->getToken());
-                }
-            } else {
-                $tx->zadd($this->getKey($queue, self::STATE_DELAYED), time() + $delay, $message->getToken());
-            }
-        });
-
-        $this->checkTransactionResult($result, 'put');
+        $command = new PutCommand($this);
+        $message = $command->execute($queue, $data, $delay, $priority);
 
         return $message;
     }
@@ -175,66 +159,11 @@ class Queue implements QueueInterface
      */
     public function reserve($queue, $timeout = 0)
     {
-        if ($this->isStop($queue)) {
-            return null;
-        }
+        $command = new ReserveCommand($this);
 
-        $this->migrate($queue);
-
-        $token = $this->reserveToken($queue, $timeout);
-        $message = $this->restoreMessage($token);
-
-        if($message === null){
-            return null;
-        }
-
-        $this->getRedis()->transaction(function ($tx) use ($queue, $token) {
-            /** @var $tx \Predis\Client */
-            $tx->zadd($this->getKey($queue, self::STATE_RESERVED), time(), $token);
-            $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $token, self::STATE_RESERVED);
-        });
-
-        return $message;
+        return $command->execute($queue, $timeout);
     }
 
-    /**
-     * @param string $queue
-     * @param int    $timeout
-     *
-     * @return null|string
-     */
-    protected function reserveToken($queue, $timeout = 0)
-    {
-
-        $redis = $this->getRedis();
-
-        if ($timeout > 0) {
-            // example return [ '0' => queue name , '1' => jobId ]
-            $token = $redis->blpop([$this->getKey($queue, self::STATE_READY)], $timeout);
-            $token = (is_array($token)) ? $token[1] : null;
-        } else {
-            $token = $redis->lpop($this->getKey($queue, self::STATE_READY));
-        }
-
-        return $token;
-    }
-
-    /**
-     * @param string|null $token
-     *
-     * @return null|MessageInterface
-     */
-    protected function restoreMessage($token)
-    {
-        if (is_null($token)) {
-            return null;
-        }
-
-        $encoded = $this->getRedis()->hget($this->ns(self::NS_MESSAGE), $token);
-        $message = Message::decode($encoded);
-
-        return $message;
-    }
 
     /**
      * @param string|MessageInterface $mixed
@@ -244,18 +173,8 @@ class Queue implements QueueInterface
      */
     public function delete($mixed)
     {
-        $payload = $this->payload($mixed);
-        $this->checkMessageFlow($payload->getState(), 'delete');
-
-        $this->getRedis()->transaction(function ($tx) use ($payload) {
-            /** @var $tx \Predis\Client */
-            $tx->zrem($this->getKey($payload->getQueue(), self::STATE_RESERVED), $payload->getToken());
-            $tx->zrem($this->getKey($payload->getQueue(), self::STATE_BURIED), $payload->getToken());
-            $tx->zrem($this->getKey($payload->getQueue(), self::STATE_DELAYED), $payload->getToken()); // ?
-            $tx->hdel($this->ns(self::NS_MESSAGE), $payload->getToken());
-            $tx->hdel($this->ns(self::NS_MESSAGE_TO_QUEUE), $payload->getToken());
-            $tx->hdel($this->ns(self::NS_MESSAGE_TO_STATE), $payload->getToken());
-        });
+        $command = new DeleteCommand($this);
+        $command->execute($mixed);
 
         return $this;
     }
@@ -270,24 +189,8 @@ class Queue implements QueueInterface
      */
     public function release($mixed, $delay = 0)
     {
-        $payload = $this->payload($mixed);
-        $this->checkMessageFlow($payload->getState(), 'release');
-        $delay = $this->parseDelay($delay);
-
-        $result = $this->getRedis()->transaction(function ($tx) use ($payload, $delay) {
-            /** @var $tx \Predis\Client */
-            $tx->zrem($this->getKey($payload->getQueue(), self::STATE_RESERVED), $payload->getToken());
-            $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $payload->getToken(), self::STATE_READY);
-
-            if ($delay == 0) {
-                $tx->rpush($this->getKey($payload->getQueue(), self::STATE_READY), $payload->getToken());
-            } else {
-                $tx->zadd($this->getKey($payload->getQueue(), self::STATE_DELAYED), time() + $delay,
-                    $payload->getToken());
-            }
-        });
-
-        $this->checkTransactionResult($result, 'release');
+        $command = new ReleaseCommand($this);
+        $command->execute($mixed, $delay);
 
         return $this;
     }
@@ -323,24 +226,8 @@ class Queue implements QueueInterface
      */
     protected function moveMessage($mixed, $moveTo)
     {
-        $payload = $this->payload($mixed);
-
-        $this->checkMessageFlow($payload->getState(), $moveTo);
-
-        $result = $this->getRedis()->transaction(function ($tx) use ($payload, $moveTo) {
-            /** @var $tx \Predis\Client */
-            if ($moveTo === 'bury') {
-                $tx->zrem($this->getKey($payload->getQueue(), self::STATE_RESERVED), $payload->getToken());
-                $tx->zadd($this->getKey($payload->getQueue(), self::STATE_BURIED), time(), $payload->getToken());
-                $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $payload->getToken(), self::STATE_BURIED);
-            } elseif ($moveTo === 'kick') {
-                $tx->zrem($this->getKey($payload->getQueue(), self::STATE_BURIED), $payload->getToken());
-                $tx->rpush($this->getKey($payload->getQueue(), self::STATE_READY), $payload->getToken());
-                $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $payload->getToken(), self::STATE_READY);
-            }
-        });
-
-        $this->checkTransactionResult($result, $moveTo);
+        $command = new MoveCommand($this);
+        $command->execute($mixed, $moveTo);
 
         return $this;
     }
@@ -365,37 +252,9 @@ class Queue implements QueueInterface
      */
     public function migrate($queue = null)
     {
-        if (null === $queue) {
-            $queueList = $this->getQueueList();
-            foreach ($queueList as $queue) {
-                $this->migrate($queue);
-            }
 
-            return $this;
-        }
-
-        $keyReady = $this->getKey($queue, self::STATE_READY);
-        $keyDelayed = $this->getKey($queue, self::STATE_DELAYED);
-
-        $this->getRedis()->transaction(['cas' => true, 'watch' => [$keyReady, $keyDelayed], 'retry' => 10],
-            function ($tx) use ($queue, $keyReady, $keyDelayed) {
-
-                /** @var $tx \Predis\Client */
-                $time = time();
-
-                // get expired jobs from "delayed queue"
-                $messageTokenSet = $tx->zrangebyscore($keyDelayed, '-inf', $time);
-
-                if (count($messageTokenSet) > 0) {
-                    // remove jobs from "delayed queue"
-                    $tx->multi();
-                    $tx->zremrangebyscore($keyDelayed, '-inf', $time);
-                    foreach ($messageTokenSet as $token) {
-                        $tx->rpush($keyReady, $token);
-                        $tx->hset($this->ns(self::NS_MESSAGE_TO_STATE), $token, self::STATE_READY);
-                    }
-                }
-            });
+        $command = new MigrateCommand($this);
+        $command->execute($queue);
 
         return $this;
     }
@@ -549,20 +408,6 @@ class Queue implements QueueInterface
         }
 
         return $this;
-    }
-
-    /**
-     * @param mixed $mixed
-     *
-     * @return MessageInterface
-     */
-    protected function createMessage($mixed)
-    {
-        if ($mixed instanceof MessageInterface) {
-            return $mixed;
-        }
-
-        return new Message($mixed);
     }
 
     /**
