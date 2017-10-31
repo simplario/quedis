@@ -38,7 +38,7 @@ class IteratorTest extends TestCase
     public function testInterface()
     {
         $queue = $this->createQueue();
-        $iterator = new Iterator($queue, []);
+        $iterator = new Iterator($queue, 'dummy');
 
         $this->assertInstanceOf(Iterator::class, $iterator);
         $this->assertInstanceOf(IteratorInterface::class, $iterator);
@@ -55,12 +55,12 @@ class IteratorTest extends TestCase
         $originA = $queue->put(self::TEST_QUEUE_NAME, 'message 1');
         $originB = $queue->put(self::TEST_QUEUE_NAME, 'message 2');
 
-        $queue->iterator(self::TEST_QUEUE_NAME, [
-            'strategy' => 'pop',
-        ])->each(function (Message $message, Queue $queue) use (&$result) {
-            $result[] = $message;
-        });
+        $result= [];
+        $iterator = $queue->iterator(self::TEST_QUEUE_NAME, 'pop');
 
+        foreach ($iterator as $index => $message){
+            $result[] = $message;
+        }
 
         $this->assertEquals($originA, $result[0]);
         $this->assertEquals($originB, $result[1]);
@@ -76,20 +76,12 @@ class IteratorTest extends TestCase
         $originA = $queue->put(self::TEST_QUEUE_NAME, 'message 1');
         $originB = $queue->put(self::TEST_QUEUE_NAME, 'message 2');
 
-
         $result = [];
+        $iterator = new Iterator($queue, self::TEST_QUEUE_NAME, 'pop', 0);
 
-        $iterator = new Iterator($queue, [
-            'queue'         => self::TEST_QUEUE_NAME,
-            'sleep'         => 0,
-            'timeout'       => 0,
-            'strategy'      => 'pop',
-        ]);
-
-
-        $iterator->each(function(Message $message, Queue $queue) use (&$result){
+        foreach ($iterator as $index => $message){
             $result[] = $message;
-        });
+        }
 
         $this->assertEquals($originA, $result[0]);
         $this->assertEquals($originB, $result[1]);
@@ -105,22 +97,14 @@ class IteratorTest extends TestCase
         $originA = $queue->put(self::TEST_QUEUE_NAME, 'message 1');
         $originB = $queue->put(self::TEST_QUEUE_NAME, 'message 2');
 
-
         $result = [];
+        $iterator = new Iterator($queue, self::TEST_QUEUE_NAME, 'reserve', 0);
 
-        $iterator = new Iterator($queue, [
-            'queue'         => self::TEST_QUEUE_NAME,
-            'sleep'         => 0,
-            'timeout'       => 0,
-            'strategy'      => 'reserve',
-        ]);
-
-
-        $iterator->each(function(Message $message, Queue $queue) use (&$result){
+        foreach ($iterator as $index => $message){
             $result[] = $message;
 
             $queue->delete($message);
-        });
+        }
 
         $this->assertEquals($originA, $result[0]);
         $this->assertEquals($originB, $result[1]);
@@ -138,115 +122,17 @@ class IteratorTest extends TestCase
         $originA = $queue->put(self::TEST_QUEUE_NAME, 'message 1');
         $originB = $queue->put(self::TEST_QUEUE_NAME, 'message 2');
 
-
         $result = [];
+        $limit = 1;
+        $iterator = new Iterator($queue, self::TEST_QUEUE_NAME, 'pop', 0);
 
-        $iterator = new Iterator($queue, [
-            'queue'         => self::TEST_QUEUE_NAME,
-            'timeout'       => 0,
-            'strategy'      => 'pop',
-            'messages'      => 1,
-        ]);
-
-
-        $iterator->each(function(Message $message, Queue $queue) use (&$result){
-            $result[] = $message;
-        });
-
-        $this->assertEquals($originA, $result[0]);
-        $this->assertEquals(1, count($result));
-    }
-
-
-    /**
-     * @return void
-     */
-    public function testIteratePopWayLimitLoop()
-    {
-        $queue = $this->createQueue();
-
-        $originA = $queue->put(self::TEST_QUEUE_NAME, 'message 1');
-        $originB = $queue->put(self::TEST_QUEUE_NAME, 'message 2');
-        $originC = $queue->put(self::TEST_QUEUE_NAME, 'message 3', 10);
-
-
-        $result = [];
-
-        $iterator = new Iterator($queue, [
-            'queue'         => self::TEST_QUEUE_NAME,
-            'timeout'       => 0,
-            'strategy'      => 'pop',
-            'loops'         => 1,
-        ]);
-
-
-        $iterator->each(function(Message $message, Queue $queue) use (&$result){
-            $result[] = $message;
-        });
-
-        $this->assertEquals($originA, $result[0]);
-        $this->assertEquals($originB, $result[1]);
-        $this->assertEquals(2, count($result));
-    }
-
-
-
-    /**
-     * @return void
-     */
-    public function testIteratePopWaySleep()
-    {
-        $queue = $this->createQueue();
-
-        $originA = $queue->put(self::TEST_QUEUE_NAME, 'message 1');
-        $originB = $queue->put(self::TEST_QUEUE_NAME, 'message 2');
-
-
-        $time = time();
-        $result = [];
-
-        $iterator = new Iterator($queue, [
-            'queue'    => self::TEST_QUEUE_NAME,
-            'timeout'  => 0,
-            'strategy' => 'pop',
-            'sleep'    => 1,
-        ]);
-
-
-        $iterator->each(function(Message $message, Queue $queue) use (&$result){
-            $result[] = $message;
-        });
-
-        $this->assertEquals($originA, $result[0]);
-        $this->assertEquals($originB, $result[1]);
-        $this->assertTrue(time() > $time);
-    }
-
-
-    /**
-     * @return void
-     */
-    public function testIterateFinishIterator()
-    {
-        $queue = $this->createQueue();
-
-        $originA = $queue->put(self::TEST_QUEUE_NAME, 'message 1');
-        $originB = $queue->put(self::TEST_QUEUE_NAME, 'message 2');
-        $originC = $queue->put(self::TEST_QUEUE_NAME, 'message 3');
-
-        $result = [];
-
-        $iterator = new Iterator($queue, [
-            'queue'    => self::TEST_QUEUE_NAME,
-            'strategy' => 'pop',
-        ]);
-
-
-        $iterator->each(function(Message $message, Queue $queue, Iterator $iterator) use (&$result){
+        foreach ($iterator as $index => $message) {
             $result[] = $message;
 
-            $iterator->finish();
-        });
+            if ($index + 1 >= $limit) {
+                break;
+            }
+        }
 
         $this->assertEquals($originA, $result[0]);
         $this->assertEquals(1, count($result));

@@ -99,10 +99,11 @@ interface QueueInterface
 
     /**
      * @param string $queue
-     * @param array  $options
+     * @param string $strategy
+     * @param int    $timeout
      *
-     * @return IteratorInterface
+     * @return mixed
      */
-    public function iterator($queue, array $options = []);
+    public function iterator($queue, $strategy = 'pop', $timeout = 0);
 
 }
