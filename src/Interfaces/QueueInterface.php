@@ -102,7 +102,7 @@ interface QueueInterface
      * @param string $strategy
      * @param int    $timeout
      *
-     * @return mixed
+     * @return IteratorInterface
      */
     public function iterator($queue, $strategy = 'pop', $timeout = 0);
 
